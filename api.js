@@ -6,6 +6,7 @@
   const db = READY ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: "movimentos2026-auth" } }) : null;
 
   const norm = s => String(s || "").trim().toLowerCase();
+  const nomeDoEmail = e => String(e).split("@")[0].split(/[._-]+/).filter(Boolean).map(p => p[0].toUpperCase() + p.slice(1)).join(" ");
   const err = e => { const m = (e && (e.message || e.error_description)) || "Algo deu errado. Tente de novo."; return new Error(m); };
 
   /** Reduz a foto no celular (máx. 1600px, JPEG ~80%) antes de enviar. */
@@ -37,7 +38,7 @@
     async login(email) {
       const { data: ok, error } = await db.rpc("check_participant", { p_email: email });
       if (error) throw err(error);
-      if (!ok) throw new Error("Não encontramos esse e-mail na lista de colaboradores. Confira com o RH.");
+      if (!ok) throw new Error("Use seu e-mail @revvo.com.br.");
       let { data: s } = await db.auth.getSession();
       if (!s.session) {
         const r = await db.auth.signInAnonymously();
@@ -116,6 +117,7 @@
       const t0 = Date.now() - 3600e3;
       ROSTER.forEach((p, i) => { if (i === 0) return; const n = Math.max(1, 10 - i); for (let k = 0; k < n; k++) { const cid = ((k * 4 + i) % 15) + 1; const outros = k % 3 === 0 ? [ROSTER[(i + 3) % ROSTER.length].id] : []; st.subs.push({ id: "s" + i + "-" + k, event_id: "rj", challenge_id: cid, submitted_by: p.id, ids: [p.id, ...outros].filter(x => x !== "p0"), photo: ph(i + k), valid: true, created_at: new Date(t0 + (i * 7 + k) * 60e3).toISOString() }); } });
     }
+    (st.extra || []).forEach(r => { if (!ROSTER.some(x => x.id === r.id)) ROSTER.push(r); });
     const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { } };
     let me = null; try { me = JSON.parse(localStorage.getItem(KEY + "_me") || "null"); } catch (e) { }
     let authCb = () => { };
@@ -135,7 +137,16 @@
       async challenges() { return allCh().filter(c => c.kind === "cartao" || c.active); },
       async session() { return me ? { user: { id: me.id, email: me.email } } : null; },
       onAuth(cb) { authCb = cb; },
-      async login(email) { await wait(500); const r = ROSTER.find(x => x.email === norm(email)); if (!r) throw new Error("Não encontramos esse e-mail na lista. No modo demonstração, use por exemplo ana@revvo.com.br (RH) ou bruno@revvo.com.br."); me = r; try { localStorage.setItem(KEY + "_me", JSON.stringify(me)); } catch (e) { } authCb(await api.session()); },
+      async login(email) {
+        await wait(400); const e = norm(email);
+        let r = ROSTER.find(x => x.email === e);
+        if (!r) {
+          if (!/@revvo\.com\.br$/.test(e)) throw new Error("Use seu e-mail @revvo.com.br.");
+          r = { id: "u" + Date.now().toString(36), full_name: nomeDoEmail(e), email: e, area: "", is_admin: true };
+          ROSTER.push(r); st.extra = (st.extra || []).concat(r); save();
+        }
+        me = r; try { localStorage.setItem(KEY + "_me", JSON.stringify(me)); } catch (e2) { } authCb(await api.session());
+      },
       async signOut() { me = null; try { localStorage.removeItem(KEY + "_me"); } catch (e) { } authCb(null); },
       async profile() { return me && { id: me.id, full_name: me.full_name, area: me.area, is_admin: me.is_admin }; },
       async roster() { return ROSTER.map(({ id, full_name, area }) => ({ id, full_name, area })); },

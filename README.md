@@ -13,7 +13,7 @@ App web (celular) da festa de final de ano: a pessoa pega um cartão, faz o desa
 | `vendor/` | Biblioteca do Supabase e gerador de QR code (sem depender de CDN) |
 | `assets/` | Logo REVVO original e logo MOVIMENTOS (provisório) |
 
-Sem `config.js` preenchido, o app abre em **modo demonstração** (dados fictícios só no navegador; entre com `ana@revvo.com.br` para ver a área do RH).
+Sem `config.js` preenchido, o app abre em **modo demonstração** (dados fictícios só no navegador; entra com qualquer e-mail @revvo.com.br e, na demonstração, todo mundo vê a área do RH).
 
 ## Regras implementadas
 - **15 desafios**: 01–05 Aquecendo **+1** · 06–10 Em movimento **+2** · 11–15 Indo além **+3** · Relâmpago **+5** (ligado pelo RH durante a festa).
@@ -21,7 +21,7 @@ Sem `config.js` preenchido, o app abre em **modo demonstração** (dados fictíc
 - Cada pessoa pontua **1 vez por desafio** em cada evento. Repetir manda a foto para o carrossel sem somar.
 - **Evento automático pela data e hora** (sem a pessoa escolher a cidade): Rio 08/12 18h–22h30 · SP 10/12 18h30–22h30. Envios abrem 30 min antes e fecham 15 min depois. Fora disso, o envio é bloqueado no servidor.
 - **Ranking separado por evento**, top 10 destacado. Desempate: quem chegou primeiro à pontuação.
-- **Entrada só com o e-mail corporativo** (precisa estar na lista de colaboradores). Sem senha e sem código.
+- **Entrada só com o e-mail corporativo**: qualquer e-mail **@revvo.com.br** entra, mesmo que ainda não esteja na lista (o cadastro é criado na hora, com o nome tirado do e-mail, ex.: `maria.oliveira@` → "Maria Oliveira"). Sem senha e sem código. Para exigir a lista, deixe `settings.dominio_livre` vazio.
 - Fotos em **bucket privado**: só pessoas logadas veem (link temporário). O ranking **não mostra e-mails**.
 
 ---
@@ -36,6 +36,7 @@ Sem `config.js` preenchido, o app abre em **modo demonstração** (dados fictíc
 1. Monte a planilha no formato de `colaboradores_template.csv` (colunas `full_name,email,area,is_admin`). `is_admin = true` só para quem cuida da área do RH.
 2. **Table Editor → participants → Insert → Import data from CSV**.
 3. O nome aparece no ranking e na lista para marcar colegas: use o nome pelo qual as pessoas se reconhecem.
+4. A importação é recomendada (nomes certos e todos aparecem para serem marcados), mas não obrigatória: quem não estiver na lista entra com o e-mail @revvo.com.br e é cadastrado na hora.
 
 ### 3. Configurar a entrada só com e-mail
 1. **Authentication → Sign In / Providers**: ligue **Allow anonymous sign-ins**. O app cria uma sessão anônima no celular e a vincula ao e-mail da lista — sem senha e sem código.
