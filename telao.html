@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Telão | MOVIMENTOS 2026 · Revvo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css" />
+<style>
+  html, body { height: 100%; overflow: hidden; }
+  body { font-size: 1vw; }
+  .tela { position: relative; height: 100vh; display: grid; grid-template-columns: 1.5fr 1fr; grid-template-rows: auto 1fr; gap: 1.4vw 2.4vw; padding: 1.6vw 2.4vw 2vw; }
+  .t-top { grid-column: 1 / -1; display: flex; align-items: center; gap: 2vw; border-bottom: 1px solid var(--line); padding-bottom: 1.2vw; }
+  .t-top .logo-revvo { width: 8vw; } .t-top .logo-movimentos { width: 18vw; } .t-top i { width: 1px; height: 4vw; background: #667080; }
+  .t-slogan { font-size: .85vw; font-weight: 800; letter-spacing: .2em; color: var(--muted); line-height: 1.7; }
+  .t-slogan b { color: var(--yellow); display: block; }
+  .t-ev { margin-left: auto; text-align: right; }
+  .t-ev small { font-size: .8vw; letter-spacing: .3em; font-weight: 800; color: var(--orange); }
+  .t-ev strong { display: block; font: 900 3.6vw "Barlow Condensed"; color: var(--yellow); line-height: 1; letter-spacing: -.05em; }
+  .t-ev span { font-size: .8vw; letter-spacing: .2em; font-weight: 800; }
+  .esq { display: grid; grid-template-rows: 1fr auto; gap: 1.2vw; min-height: 0; }
+  .palco { position: relative; min-height: 0; overflow: hidden; background: #070b13; border: 1px solid var(--line); border-top: 2px solid var(--orange); }
+  .slide { position: absolute; inset: 0; opacity: 0; transition: opacity 1s ease; margin: 0; }
+  .slide.on { opacity: 1; }
+  .slide .bg { position: absolute; inset: -40px; background: center/cover no-repeat; filter: blur(30px) brightness(.35); }
+  .slide .ft { position: absolute; inset: 0; background: center/contain no-repeat; }
+  .slide figcaption { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 1.2vw; padding: 3vw 1.6vw 1.3vw; background: linear-gradient(transparent, rgba(0, 6, 15, .95)); }
+  .slide .n { font: 900 3vw "Barlow Condensed"; color: var(--accent); line-height: 1; }
+  .slide b { display: block; font-size: 1.4vw; } .slide span { font-size: 1vw; color: #cfd6e2; }
+  .slide .pts { margin-left: auto; background: var(--accent); color: #05070d; font-weight: 900; font-size: 1vw; padding: .5vw .9vw; }
+  .vazio { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 1.3vw; text-align: center; padding: 2vw; }
+  .rel { position: absolute; z-index: 3; top: 1.2vw; left: 1.2vw; right: 1.2vw; padding: 1.1vw 1.4vw; color: #05070d; background: linear-gradient(110deg, var(--yellow), var(--orange)); animation: flash 2.4s ease-in-out infinite; }
+  .rel small { font-size: .8vw; font-weight: 900; letter-spacing: .25em; } .rel p { margin: .3vw 9vw 0 0; font-size: 1.5vw; font-weight: 800; }
+  .rel .pts { position: absolute; right: 1.2vw; top: 1.1vw; background: #05070d; color: var(--yellow); font-weight: 900; font-size: 1.1vw; padding: .5vw .9vw; }
+  .rodape { display: flex; align-items: center; gap: 1.4vw; padding: 1vw 1.2vw; border: 1px solid var(--line); border-top: 2px solid var(--yellow); background: linear-gradient(130deg, rgba(18,28,43,.94), rgba(7,11,19,.96)); }
+  .qr { background: #fff; padding: .5vw; width: 7.4vw; height: 7.4vw; flex: 0 0 auto; } .qr svg { width: 100%; height: 100%; display: block; }
+  .rodape .k { font-size: .8vw; letter-spacing: .25em; font-weight: 900; color: var(--yellow); } .rodape p { margin: .4vw 0 0; font-size: 1vw; color: var(--muted); line-height: 1.5; }
+  .rodape .lv { margin-left: auto; display: flex; gap: 1.4vw; } .rodape .lv div { text-align: center; } .rodape .lv b { display: block; font: 900 2vw "Barlow Condensed"; } .rodape .lv span { font-size: .6vw; letter-spacing: .15em; font-weight: 800; color: var(--muted); }
+  .lado { position: relative; display: flex; flex-direction: column; min-height: 0; }
+  .lado .k { font-size: .9vw; letter-spacing: .25em; font-weight: 800; color: var(--muted); } .lado h2 { font-size: 2.2vw; margin: .3vw 0 1vw; }
+  .rk { flex: 1; display: grid; grid-template-rows: repeat(10, 1fr); gap: .4vw; min-height: 0; }
+  .rk div { display: grid; grid-template-columns: 3.4vw 1fr auto; align-items: center; gap: 1vw; padding: 0 1.2vw; border: 1px solid var(--line); background: #090e17; min-height: 0; }
+  .rk .p { font: 900 1.7vw "Barlow Condensed"; color: var(--yellow); } .rk .nm { font-size: 1.2vw; font-weight: 700; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; } .rk .nm small { display: block; font-size: .75vw; color: var(--muted); font-weight: 400; }
+  .rk .pt { font: 900 1.6vw "Barlow Condensed"; color: var(--yellow); }
+  .rk div:nth-child(1) { border-color: var(--yellow); } .rk div.novo { animation: novo 1.6s ease; }
+  @keyframes novo { 0% { background: rgba(0,189,242,.35); } }
+  .login { position: fixed; inset: 0; z-index: 9; display: grid; place-items: center; background: rgba(0,6,15,.92); text-align: center; font-size: 1.2vw; }
+  .login a { color: var(--yellow); }
+  .wm-telao { right: -1vw; bottom: -2vw; font-size: 15vw; }
+  .fs { position: fixed; z-index: 8; top: 1vw; left: 50%; transform: translateX(-50%); opacity: 0; transition: .3s; } body:hover .fs { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
+  <div class="backdrop" aria-hidden="true">
+    <div class="beam beam-orange"></div><div class="beam beam-blue"></div>
+    <div class="uplight up-l"></div><div class="uplight up-r"></div>
+    <svg class="arcs" viewBox="0 0 400 400" preserveAspectRatio="xMaxYMax meet"><defs><linearGradient id="arcG" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#ffd400"/><stop offset=".55" stop-color="#ffffff" stop-opacity=".9"/><stop offset="1" stop-color="#00bdf2" stop-opacity=".2"/></linearGradient></defs><g fill="none" stroke="url(#arcG)" stroke-width="1.4"><path d="M40 400 A360 360 0 0 1 400 40"/><path d="M80 400 A320 320 0 0 1 400 80"/><path d="M120 400 A280 280 0 0 1 400 120"/><path d="M160 400 A240 240 0 0 1 400 160"/><path d="M200 400 A200 200 0 0 1 400 200"/></g></svg>
+    <span class="particle p1"></span><span class="particle p2"></span><span class="particle p3"></span><span class="particle p4"></span><span class="particle p5"></span><span class="particle p6"></span><span class="particle p7"></span><span class="particle p8"></span>
+  </div>
+<div class="tela">
+  <header class="t-top">
+    <img class="logo-revvo" src="assets/logo-revvo-branco.png" alt="Revvo"><i></i>
+    <img class="logo-movimentos" src="assets/logo-movimentos.png" alt="MOVIMENTOS 26/27">
+    <p class="t-slogan">O APRENDIZADO NOS TRANSFORMA. <b>O MOVIMENTO NOS LEVA ALÉM.</b></p>
+    <div class="t-ev" id="ev"></div>
+  </header>
+  <div class="esq">
+    <section class="palco" id="palco"><div class="vazio">As fotos dos desafios aparecem aqui.<br>Pegue um cartão e participe!</div></section>
+    <div class="rodape">
+      <div class="qr" id="qr"></div>
+      <div><div class="k">ENVIE SUA FOTO</div><p>Aponte a câmera do celular, entre com seu e-mail<br>e marque quem está na foto: todos pontuam!</p></div>
+      <div class="lv"><div><b style="color:var(--yellow)">+1</b><span>AQUECENDO</span></div><div><b style="color:var(--orange)">+2</b><span>EM MOVIMENTO</span></div><div><b style="color:var(--blue)">+3</b><span>INDO ALÉM</span></div></div>
+    </div>
+  </div>
+  <aside class="lado">
+    <div class="wm wm-telao" aria-hidden="true">MOVI<br>MEN<br>TOS</div>
+    <div class="k" id="rkKicker">QUEM ESTÁ MOVIMENTANDO</div>
+    <h2>Ranking <em id="rkCity">da noite</em></h2>
+    <div class="rk" id="rk"></div>
+  </aside>
+</div>
+<div class="login hidden" id="login"><div><p>Para abrir o telão, entre no app <b>neste mesmo navegador</b> com um e-mail da lista (de preferência do RH).</p><p><a href="./" id="loginLink">Abrir o app e entrar →</a></p></div></div>
+<button class="btn btn-ghost btn-small fs" onclick="document.documentElement.requestFullscreen && document.documentElement.requestFullscreen()">TELA CHEIA</button>
+
+<script src="./vendor/supabase-2.45.4.js"></script>
+<script src="./vendor/qrcode-generator.js"></script>
+<script src="./config.js"></script>
+<script src="./api.js"></script>
+<script>
+(() => {
+  const $ = s => document.querySelector(s), API = window.MovApi, CFG = window.MOVIMENTOS_CONFIG || {};
+  const EV = new URLSearchParams(location.search).get("evento") || null;
+  const COR = { "AQUECENDO": "#ffd400", "EM MOVIMENTO": "#ff6500", "INDO ALÉM": "#00bdf2", "RELÂMPAGO": "#ffffff" };
+  const pad = n => String(n).padStart(2, "0");
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const short = n => { const p = String(n || "").trim().split(/\s+/); return p.length > 1 ? p[0] + " " + p[p.length - 1] : p[0]; };
+  const url = CFG.APP_URL || new URL("./", location.href).href;
+  try { const q = qrcode(0, "M"); q.addData(url); q.make(); $("#qr").innerHTML = q.createSvgTag({ cellSize: 8, margin: 0, scalable: true }); } catch (e) { $("#qr").textContent = url; }
+
+  let ev = null, fotos = [], idx = 0, topo = "", prev = {};
+  function slide() {
+    if (!fotos.length) return;
+    idx %= fotos.length; const f = fotos[idx++]; const c = COR[f.category] || "#ffd400"; const u = f.url || API.url(f.photo_path) || "";
+    const s = document.createElement("figure"); s.className = "slide"; s.style.setProperty("--accent", c);
+    s.innerHTML = `<div class="bg" style="background-image:url('${esc(u)}')"></div><div class="ft" style="background-image:url('${esc(u)}')"></div>
+      <figcaption><span class="n">${f.category === "RELÂMPAGO" ? "⚡" : pad(f.challenge_id)}</span><div><b>${esc(f.title)}</b><span>${esc((f.names || []).join(", "))}</span></div><span class="pts">+${f.points} PT${f.points > 1 ? "S" : ""}</span></figcaption>`;
+    const p = $("#palco"); p.querySelectorAll(".vazio").forEach(v => v.remove()); p.appendChild(s);
+    requestAnimationFrame(() => requestAnimationFrame(() => s.classList.add("on")));
+    [...p.querySelectorAll(".slide")].slice(0, -1).forEach(v => { v.classList.remove("on"); setTimeout(() => v.remove(), 1100); });
+  }
+  async function atualizar() {
+    try {
+      if (!(await API.session())) { $("#login").classList.remove("hidden"); return; }
+      $("#login").classList.add("hidden");
+      const [e, chs] = await Promise.all([API.event(EV), API.challenges()]); ev = e;
+      const teste = ev.id === "teste";
+      const d = ev.starts_at ? new Date(ev.starts_at).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit" }).replace("/", ".") : "";
+      $("#ev").innerHTML = `<small>${esc(ev.cidade.toUpperCase())}</small><strong>${teste ? "TESTE" : d}</strong><span>${esc((ev.local || "").toUpperCase())}</span>`;
+      $("#rkCity").textContent = teste ? "do teste" : ev.id === "sp" ? "de São Paulo" : "do Rio";
+      $("#rkKicker").textContent = ev.status === "encerrado" ? "RESULTADO FINAL" : "AO VIVO · QUEM ESTÁ MOVIMENTANDO";
+      const [b, f] = await Promise.all([API.leaderboard(EV || ev.id), API.feed(EV || ev.id, 80)]);
+      const top = ev.top || 10;
+      $("#rk").innerHTML = b.length ? b.slice(0, top).map((p, i) => `<div class="${prev[p.participant_id] !== undefined && prev[p.participant_id] !== p.points ? "novo" : ""}"><span class="p">${pad(i + 1)}</span><span class="nm">${esc(short(p.name))}<small>${p.challenges} desafio${p.challenges > 1 ? "s" : ""}${p.area ? " · " + esc(p.area) : ""}</small></span><span class="pt">${p.points}</span></div>`).join("") : `<div style="grid-row:1/3"><span></span><span class="nm">Ninguém pontuou ainda.<small>Quem vai ser o primeiro movimento?</small></span></div>`;
+      prev = {}; b.forEach(p => prev[p.participant_id] = p.points);
+      const rel = chs.find(c => c.kind === "relampago"); let rb = $("#palco .rel");
+      if (rel && ev.status === "aberto") { if (!rb) { rb = document.createElement("div"); rb.className = "rel"; $("#palco").appendChild(rb); } rb.innerHTML = `<small>⚡ DESAFIO RELÂMPAGO · VALE AGORA</small><p>${esc(rel.description)}</p><span class="pts">+${rel.points} PTS</span>`; }
+      else if (rb) rb.remove();
+      const vazio = !fotos.length; fotos = f; const t = f[0] ? f[0].submission_id : "";
+      if (t !== topo) { topo = t; idx = 0; } if (vazio) slide();
+    } catch (er) { console.error(er); }
+  }
+  atualizar();
+  setInterval(atualizar, (CFG.ATUALIZAR_A_CADA_SEG || 15) * 1000);
+  setInterval(slide, 6000);
+})();
+</script>
+</body>
+</html>
