@@ -89,7 +89,7 @@
 
   /* ================= DEMONSTRAÇÃO LOCAL ================= */
   const demo = (() => {
-    const KEY = "movimentos2026_demo_v2";
+    const KEY = "movimentos2026_demo_v3";
     const CH = [
       [1, "Conexões que movimentam", "AQUECENDO", 1, "Tire uma foto com alguém com quem você ainda não teve a oportunidade de conversar hoje."],
       [2, "Riso espontâneo", "AQUECENDO", 1, "Tire uma foto de um momento de risada genuína com alguém."],
@@ -107,6 +107,17 @@
       [14, "Liderança de perto", "INDO ALÉM", 3, "Foto com alguém da liderança fazendo exatamente a mesma pose que você."],
       [15, "Time maior que o indivíduo", "INDO ALÉM", 3, "Uma única foto com 8 ou mais pessoas de pelo menos 3 áreas diferentes."]
     ].map(([id, title, category, points, description]) => ({ id, title, category, points, description, kind: "cartao", active: true }));
+    const ESQ = [
+      [201, "Ação da CIPA", "Foto ou print seu participando de uma ação da CIPA."],
+      [202, "Cafezinho Virtual", "Print do Cafezinho Virtual com a galera reunida."],
+      [203, "Clube do Livro", "Foto com o livro do momento ou print do encontro do Clube do Livro."],
+      [204, "Autocuidado do dia", "Registre uma pausa de autocuidado: alongamento, água, caminhada, respiro."],
+      [205, "Daily em movimento", "Print da sua daily com o time (com todo mundo de acordo)."],
+      [206, "Revvo Saúde em ação", "Foto da sua atividade física da semana."],
+      [207, "Meu cantinho Revvo", "Mostre o cantinho de onde você trabalha."],
+      [208, "Contagem regressiva", "Uma foto mostrando como você está se preparando para a festa."],
+      [209, "Eu faço parte do movimento", "Peça para a sua IA favorita criar uma frase ou imagem que mostre que você faz parte do MOVIMENTO e poste a foto ou o print."]
+    ].map(([id, title, description]) => ({ id, title, category: "ESQUENTA", points: 0, description, kind: "esquenta", active: true }));
     const NOMES = ["Ana Souza", "Bruno Lima", "Carla Mendes", "Diego Alves", "Elisa Rocha", "Felipe Costa", "Gabi Martins", "Hugo Pereira", "Isa Ramos", "João Nunes", "Karen Dias", "Lucas Freitas", "Marina Torres", "Nina Prado"];
     const ROSTER = NOMES.map((n, i) => ({ id: "p" + i, full_name: n, email: n.split(" ")[0].toLowerCase() + "@revvo.com.br", area: ["G&G", "Tecnologia", "Comercial", "Produção", "Design"][i % 5], is_admin: i === 0 }));
     const cores = [["#ff6500", "#ffd400"], ["#0068ff", "#00bdf2"], ["#ffd400", "#ff6500"], ["#00bdf2", "#0068ff"]];
@@ -115,17 +126,19 @@
     if (!st) {
       st = { subs: [], light: { 101: { active: true, description: "Foto com o maior número de pessoas fazendo o gesto do MOVIMENTO!" }, 102: { active: false, description: "Escreva aqui o desafio da 2ª rodada." }, 103: { active: false, description: "Escreva aqui o desafio da 3ª rodada." } } };
       const t0 = Date.now() - 3600e3;
+      ROSTER.forEach((p, i) => { if (i === 0 || i > 8) return; st.subs.push({ id: "e" + i, event_id: "esquenta", challenge_id: 201 + (i % 8), submitted_by: p.id, ids: [p.id], photo: ph(i + 2), valid: true, created_at: new Date(t0 - (20 - i) * 3600e3).toISOString() }); });
       ROSTER.forEach((p, i) => { if (i === 0) return; const n = Math.max(1, 10 - i); for (let k = 0; k < n; k++) { const cid = ((k * 4 + i) % 15) + 1; const outros = k % 3 === 0 ? [ROSTER[(i + 3) % ROSTER.length].id] : []; st.subs.push({ id: "s" + i + "-" + k, event_id: "rj", challenge_id: cid, submitted_by: p.id, ids: [p.id, ...outros].filter(x => x !== "p0"), photo: ph(i + k), valid: true, created_at: new Date(t0 + (i * 7 + k) * 60e3).toISOString() }); } });
     }
     (st.extra || []).forEach(r => { if (!ROSTER.some(x => x.id === r.id)) ROSTER.push(r); });
     const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { } };
     let me = null; try { me = JSON.parse(localStorage.getItem(KEY + "_me") || "null"); } catch (e) { }
     let authCb = () => { };
-    const allCh = () => CH.concat([101, 102, 103].map(id => ({ id, title: "Relâmpago " + (id - 100), category: "RELÂMPAGO", points: 5, description: st.light[id].description, kind: "relampago", active: st.light[id].active })));
+    const allCh = () => CH.concat(ESQ).concat([101, 102, 103].map(id => ({ id, title: "Relâmpago " + (id - 100), category: "RELÂMPAGO", points: 5, description: st.light[id].description, kind: "relampago", active: st.light[id].active })));
     const ev = () => ({ id: "rj", cidade: "Rio de Janeiro", local: "Frontera Lounge Península", endereco: "Av. João Cabral de Mello Neto, 850 · Barra da Tijuca", starts_at: "2026-12-08T21:00:00Z", ends_at: "2026-12-09T01:30:00Z", status: "aberto", top: 10, max_marcados: 15, abre: new Date(Date.now() - 3600e3).toISOString(), fecha: new Date(Date.now() + 3 * 3600e3).toISOString() });
-    function lb() {
+    const doEv = (s, evId) => (s.event_id || "rj") === (evId || "rj");
+    function lb(evId) {
       const ch = new Map(allCh().map(c => [c.id, c])), feitos = new Map();
-      st.subs.filter(s => s.valid).sort((a, b) => a.created_at.localeCompare(b.created_at)).forEach(s => s.ids.forEach(pid => { const k = pid + "|" + s.challenge_id; if (!feitos.has(k)) feitos.set(k, { pid, cid: s.challenge_id, at: s.created_at }); }));
+      st.subs.filter(s => s.valid && doEv(s, evId)).sort((a, b) => a.created_at.localeCompare(b.created_at)).forEach(s => s.ids.forEach(pid => { const k = pid + "|" + s.challenge_id; if (!feitos.has(k)) feitos.set(k, { pid, cid: s.challenge_id, at: s.created_at }); }));
       const agg = new Map();
       feitos.forEach(f => { const p = ROSTER.find(r => r.id === f.pid); const a = agg.get(f.pid) || { participant_id: f.pid, name: p.full_name, area: p.area, points: 0, challenges: 0, reached_at: "" }; a.points += ch.get(f.cid).points; a.challenges++; if (f.at > a.reached_at) a.reached_at = f.at; agg.set(f.pid, a); });
       return [...agg.values()].sort((a, b) => b.points - a.points || a.reached_at.localeCompare(b.reached_at));
@@ -134,7 +147,7 @@
     const api = {
       demo: true,
       async event() { return ev(); },
-      async challenges() { return allCh().filter(c => c.kind === "cartao" || c.active); },
+      async challenges() { return allCh().filter(c => c.kind !== "relampago" || c.active); },
       async session() { return me ? { user: { id: me.id, email: me.email } } : null; },
       onAuth(cb) { authCb = cb; },
       async login(email) {
@@ -150,19 +163,20 @@
       async signOut() { me = null; try { localStorage.removeItem(KEY + "_me"); } catch (e) { } authCb(null); },
       async profile() { return me && { id: me.id, full_name: me.full_name, area: me.area, is_admin: me.is_admin }; },
       async roster() { return ROSTER.map(({ id, full_name, area }) => ({ id, full_name, area })); },
-      async leaderboard() { return lb(); },
-      async myChallenges() { return me ? [...new Set(st.subs.filter(s => s.valid && s.ids.includes(me.id)).map(s => s.challenge_id))] : []; },
-      async feed() { return st.subs.filter(s => s.valid).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 60).map(s => { const c = allCh().find(x => x.id === s.challenge_id); return { submission_id: s.id, photo_path: s.id, url: s.photo, challenge_id: s.challenge_id, title: c.title, category: c.category, points: c.points, names: s.ids.map(id => ROSTER.find(r => r.id === id).full_name.split(" ")[0]), created_at: s.created_at }; }); },
+      async leaderboard(evId) { return lb(evId); },
+      async myChallenges(evId) { return me ? [...new Set(st.subs.filter(s => s.valid && doEv(s, evId) && s.ids.includes(me.id)).map(s => s.challenge_id))] : []; },
+      async feed(evId) { return st.subs.filter(s => s.valid && doEv(s, evId)).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 60).map(s => { const c = allCh().find(x => x.id === s.challenge_id); return { submission_id: s.id, photo_path: s.id, url: s.photo, challenge_id: s.challenge_id, title: c.title, category: c.category, points: c.points, names: s.ids.map(id => ROSTER.find(r => r.id === id).full_name.split(" ")[0]), created_at: s.created_at }; }); },
       url() { return null; },
       async submit(cid, ids, file) {
         await wait(700);
         const c = allCh().find(x => x.id === cid); if (!c || !c.active) throw new Error("Este desafio não está disponível agora.");
         const all = [...new Set([me.id, ...ids])];
-        const tinha = pid => st.subs.some(s => s.valid && s.challenge_id === cid && s.ids.includes(pid));
+        const evId = c.kind === "esquenta" ? "esquenta" : "rj";
+        const tinha = pid => st.subs.some(s => s.valid && doEv(s, evId) && s.challenge_id === cid && s.ids.includes(pid));
         const ja = tinha(me.id); const novos = all.filter(p => !tinha(p)).length;
         const blob = await compress(file, 900, .75); const photo = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
-        st.subs.push({ id: "s" + Date.now(), event_id: "rj", challenge_id: cid, submitted_by: me.id, ids: all, photo, valid: true, created_at: new Date().toISOString() }); save();
-        const l = lb(); const pos = l.findIndex(x => x.participant_id === me.id);
+        st.subs.push({ id: "s" + Date.now(), event_id: evId, challenge_id: cid, submitted_by: me.id, ids: all, photo, valid: true, created_at: new Date().toISOString() }); save();
+        const l = lb("rj"); const pos = l.findIndex(x => x.participant_id === me.id);
         return { pontuou: !ja, ganhou: ja ? 0 : c.points, colegas_pontuaram: novos - (ja ? 0 : 1), pontos: pos >= 0 ? l[pos].points : 0, posicao: pos + 1 };
       },
       admin: {

@@ -16,13 +16,18 @@ App web (celular) da festa de final de ano: a pessoa pega um cartão, faz o desa
 Sem `config.js` preenchido, o app abre em **modo demonstração** (dados fictícios só no navegador; entra com qualquer e-mail @revvo.com.br e, na demonstração, todo mundo vê a área do RH).
 
 ## Regras implementadas
-- **15 desafios**: 01–05 Aquecendo **+1** · 06–10 Em movimento **+2** · 11–15 Indo além **+3** · Relâmpago **+5** (ligado pelo RH durante a festa).
+- **Esquenta (antes da festa, sem pontos)**: 9 desafios do dia a dia para engajar antes do evento — Ação da CIPA, Cafezinho Virtual, Clube do Livro, Autocuidado do dia, Daily em movimento, Revvo Saúde em ação, Meu cantinho Revvo e Contagem regressiva e Eu faço parte do movimento (a pessoa pede para a IA favorita uma frase ou imagem que mostre que faz parte do MOVIMENTO e posta a foto ou o print). Vale foto ou print de tela, não depende do horário da festa e não entra no ranking. As fotos vão para o mural "Esquenta" (aba Fotos) e aparecem no telão até chegarem as primeiras fotos da festa. Para encerrar o Esquenta: `settings.esquenta_aberto = false`. Para trocar ou desligar um desafio: tabela `challenges`, ids 201 a 209 (`active`).
+- **Carrossel com todos os desafios liberados**: a pessoa desliza, escolhe qualquer um e toca em **Tirar foto** (abre a câmera) ou **Galeria**. Marcar colegas é opcional, na mesma tela do envio.
+- **15 desafios**: 01–05 **+1** · 06–10 **+2** · 11–15 **+3** · Relâmpago **+5** (ligado pelo RH durante a festa, fora da trilha).
 - **Coletivo**: quem envia marca os colegas da foto (máx. 15). Todos que ainda não tinham feito aquele desafio pontuam.
-- Cada pessoa pontua **1 vez por desafio** em cada evento. Repetir manda a foto para o carrossel sem somar.
-- **Evento automático pela data e hora** (sem a pessoa escolher a cidade): Rio 08/12 18h–22h30 · SP 10/12 18h30–22h30. Envios abrem 30 min antes e fecham 15 min depois. Fora disso, o envio é bloqueado no servidor.
+- **Evento automático pela data e hora**: Rio 08/12 18h–22h30 · SP 10/12 18h30–22h30. Fora disso, o envio é bloqueado no servidor.
 - **Ranking separado por evento**, top 10 destacado. Desempate: quem chegou primeiro à pontuação.
-- **Entrada só com o e-mail corporativo**: qualquer e-mail **@revvo.com.br** entra, mesmo que ainda não esteja na lista (o cadastro é criado na hora, com o nome tirado do e-mail, ex.: `maria.oliveira@` → "Maria Oliveira"). Sem senha e sem código. Para exigir a lista, deixe `settings.dominio_livre` vazio.
-- Fotos em **bucket privado**: só pessoas logadas veem (link temporário). O ranking **não mostra e-mails**.
+- **Entrada só com o e-mail corporativo**: qualquer e-mail **@revvo.com.br** entra, mesmo que ainda não esteja na lista (o cadastro é criado na hora, com o nome tirado do e-mail). Para exigir a lista, deixe `settings.dominio_livre` vazio.
+- Fotos em **bucket privado**: só pessoas logadas veem. O ranking não mostra e-mails.
+
+## Linguagem visual
+- Inspirada no backdrop do evento: fundo azul-noite, corte de luz diagonal laranja→azul, "MOVI MEN TOS" em marca d'água (texto, não é o logotipo), pontos de luz e arcos finos.
+- Cor como sinal: **azul = avançar** (Tirar foto, Enviar, progresso) e **laranja = atenção** (Desafio Relâmpago, envios fechados, erros).
 
 ---
 

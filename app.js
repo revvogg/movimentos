@@ -3,167 +3,242 @@
   const API = window.MovApi;
   const CFG = window.MOVIMENTOS_CONFIG || {};
   const EV_PARAM = new URLSearchParams(location.search).get("evento") || null;
-  const COR = { "AQUECENDO": "#ffd400", "EM MOVIMENTO": "#ff6500", "INDO ALÉM": "#00bdf2", "RELÂMPAGO": "#ffffff" };
-  const DIAS = ["DOMINGO", "SEGUNDA-FEIRA", "TERÇA-FEIRA", "QUARTA-FEIRA", "QUINTA-FEIRA", "SEXTA-FEIRA", "SÁBADO"];
-  let ev = null, challenges = [], profile = null, roster = [], board = [], done = new Set(), feedData = [], current = null, carouselTimer = null, emailPend = "", busy = false;
+  const LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="1"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+  let ev = null, challenges = [], profile = null, roster = [], board = [], done = new Set(), doneEsq = new Set(), feedData = [], feedEsq = [], current = null, busy = false, lastNext = null, modo = null, mural = "festa";
 
   const pad = n => String(n).padStart(2, "0");
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const tz = { timeZone: "America/Sao_Paulo" };
   const hora = d => new Date(d).toLocaleTimeString("pt-BR", { ...tz, hour: "2-digit", minute: "2-digit" });
-  const dataBR = d => new Date(d).toLocaleDateString("pt-BR", { ...tz, day: "2-digit", month: "2-digit" }).replace("/", ".");
-  const first = n => String(n || "").split(" ")[0];
+  const dataBR = d => new Date(d).toLocaleDateString("pt-BR", { ...tz, day: "2-digit", month: "2-digit" });
   const shortName = n => { const p = String(n || "").trim().split(/\s+/); return p.length > 1 ? p[0] + " " + p[p.length - 1] : p[0]; };
-  const cor = c => COR[c.category] || "#ffd400";
-  function toast(msg, ms = 3200) { const t = $("#toast"); t.innerHTML = msg; t.classList.add("show"); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("show"), ms); }
-  function show(id) { ["welcome", "register", "app"].forEach(x => $("#" + x).classList.toggle("hidden", x !== id)); }
-
-  if (API.demo) { const b = document.createElement("div"); b.className = "demo-badge"; b.textContent = "MODO DEMONSTRAÇÃO"; document.body.appendChild(b); }
-
-  /* ---------- evento ---------- */
-  function renderEvent() {
-    if (!ev) return;
-    const teste = ev.id === "teste";
-    const b = $("#statusBanner");
-    if (ev.status === "aberto") { b.classList.add("hidden"); }
-    else {
-      b.classList.remove("hidden");
-      b.innerHTML = ev.status === "antes"
-        ? `<b>OS ENVIOS AINDA NÃO ABRIRAM</b>Eles abrem às ${hora(ev.abre)} de ${DIAS[new Date(ev.starts_at).getDay()].toLowerCase()}, ${dataBR(ev.starts_at)}, no evento de ${esc(ev.cidade)} (${esc(ev.local || "")}).`
-        : `<b>ENVIOS ENCERRADOS</b>O evento de ${esc(ev.cidade)} terminou. Confira o ranking final abaixo!`;
-    }
-    $("#rankingNote").textContent = `Os ${ev.top || 10} primeiros da noite ganham um brinde surpresa. Desempate: quem chegou primeiro à pontuação.`;
+  const fold = t => String(t).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const cards = () => challenges.filter(c => c.kind === "cartao").sort((a, b) => a.id - b.id);
+  const nextCard = () => cards().find(c => !done.has(c.id)) || null;
+  const aberto = () => !ev || ev.status === "aberto";
+  function toast(msg, stop) { const t = $("#toast"); t.textContent = msg; t.className = "toast show" + (stop ? " stop" : ""); clearTimeout(t._t); t._t = setTimeout(() => t.className = "toast", 3600); }
+  function show(id) { document.body.classList.toggle("sem-topo", id === "welcome"); ["welcome", "register", "app"].forEach(x => $("#" + x).classList.toggle("hidden", x !== id)); $("#tabs").classList.toggle("hidden", id !== "app"); $("#meChip").classList.toggle("hidden", id !== "app"); }
+  function go(v) {
+    ["desafios", "ranking", "fotos"].forEach(x => $("#v-" + x).classList.toggle("hidden", x !== v));
+    document.querySelectorAll("#tabs button").forEach(b => { if (b.dataset.v === v) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+    window.scrollTo({ top: 0 });
   }
+  document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => go(b.dataset.v));
 
-  /* ---------- login por código ---------- */
-  $("#startBtn").onclick = async () => { if (await API.session() && profile) { show("app"); return; } show("register"); $("#register").scrollIntoView({ behavior: "smooth" }); };
-  $("#rankingTopBtn").onclick = () => $("#ranking").scrollIntoView({ behavior: "smooth" });
+  if (API.demo) { const b = document.createElement("div"); b.className = "demo-badge"; b.textContent = "DEMONSTRAÇÃO"; document.body.appendChild(b); }
+
+  /* ---------- entrada ---------- */
+  $("#startBtn").onclick = () => { if (profile) { show("app"); return; } show("register"); $("#email").focus(); };
+  $("#rankingTopBtn").onclick = () => { if (profile) { show("app"); go("ranking"); return; } show("register"); $("#emailMessage").textContent = "Entre com seu e-mail para ver o ranking."; };
   $("#emailForm").onsubmit = async e => {
     e.preventDefault();
     const email = $("#email").value.trim().toLowerCase(), msg = $("#emailMessage");
     const dom = CFG.DOMINIO_EMAIL;
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return msg.textContent = "Digite um e-mail válido.";
     if (dom && !email.endsWith("@" + dom)) return msg.textContent = `Use seu e-mail @${dom}.`;
-    if (!$("#consent").checked) return msg.textContent = "Para participar, confirme a autorização de uso das fotos.";
-    msg.textContent = "Verificando cadastro…"; $("#sendCodeBtn").disabled = true;
-    try { await API.login(email); msg.textContent = ""; await afterLogin(); }
+    if (!$("#consent").checked) return msg.textContent = "Marque a autorização de uso das fotos para continuar.";
+    msg.textContent = ""; $("#sendCodeBtn").disabled = true;
+    try { await API.login(email); await afterLogin(); }
     catch (er) { msg.textContent = er.message; }
     finally { $("#sendCodeBtn").disabled = false; }
   };
-  $("#changeUser").onclick = async () => { await API.signOut(); profile = null; board = []; $("#rankingRows").innerHTML = '<div class="empty-state">Entre na experiência para começar a movimentar o ranking.</div>'; $("#admin").classList.add("hidden"); show("register"); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  $("#changeUser").onclick = async () => { await API.signOut(); profile = null; done = new Set(); doneEsq = new Set(); carSig = ""; posicionado = false; modo = null; $("#admin").classList.add("hidden"); show("welcome"); window.scrollTo({ top: 0 }); };
+  $("#rulesBtn").onclick = () => $("#rulesDialog").showModal();
+  $("#adminBtn").onclick = () => { $("#admin").classList.toggle("hidden"); if (!$("#admin").classList.contains("hidden")) { loadAdmin(); $("#admin").scrollIntoView({ behavior: "smooth" }); } };
 
   async function afterLogin() {
     profile = await API.profile();
-    if (!profile) { await API.signOut(); show("register"); $("#emailMessage").textContent = "Seu e-mail não está na lista de colaboradores. Fale com o RH."; return; }
-    $("#userFirstName").textContent = first(profile.full_name);
-    $("#admin").classList.toggle("hidden", !profile.is_admin);
-    show("app");
-    $("#app").scrollIntoView({ behavior: "smooth" });
+    if (!profile) { await API.signOut(); show("register"); $("#emailMessage").textContent = "Não foi possível entrar com esse e-mail. Fale com o RH."; return; }
+    $("#adminBtn").hidden = !profile.is_admin;
+    show("app"); go("desafios");
     roster = await API.roster().catch(() => []);
     await refresh();
   }
 
-  /* ---------- desafios ---------- */
-  function renderChallenges() {
-    const cards = challenges.slice().sort((a, b) => (a.kind === "relampago" ? -1 : 0) - (b.kind === "relampago" ? -1 : 0) || a.id - b.id);
-    $("#challengeGrid").innerHTML = cards.map(c => {
-      const d = done.has(c.id), rel = c.kind === "relampago";
-      return `<article class="challenge-card ${d ? "done" : ""}" style="--accent:${cor(c)}"><div class="challenge-meta"><span>● ${esc(c.category)}</span><span class="points">+${c.points} PT${c.points > 1 ? "S" : ""}</span></div><div class="challenge-number">${rel ? "⚡" : pad(c.id)}</div><h3>${rel ? "Desafio Relâmpago" : esc(c.title)}</h3><p>${esc(c.description)}</p><button data-challenge="${c.id}" ${d ? "disabled" : ""}>${d ? "✓ DESAFIO CONCLUÍDO" : "FAZER DESAFIO ↗"}</button></article>`;
-    }).join("");
-    $("#challengeGrid").querySelectorAll("[data-challenge]").forEach(b => b.addEventListener("click", () => openChallenge(+b.dataset.challenge)));
-    const rel = challenges.find(c => c.kind === "relampago");
-    $("#lightning").innerHTML = rel && ev && ev.status === "aberto" ? `<button class="lightning-banner" id="lightBtn"><span class="lb-kicker">⚡ DESAFIO RELÂMPAGO · VALE AGORA</span><span class="lb-text">${esc(rel.description)}</span><span class="points">+${rel.points} PTS</span></button>` : "";
-    const lb = $("#lightBtn"); if (lb) lb.onclick = () => openChallenge(rel.id);
+  /* ---------- carrossel de desafios ---------- */
+  let carSig = "", posicionado = false, pendente = null;
+  const esqs = () => challenges.filter(c => c.kind === "esquenta").sort((a, b) => a.id - b.id);
+  const principais = () => modo === "esquenta" ? esqs() : cards();
+  const feitosSet = () => modo === "esquenta" ? doneEsq : done;
+  const podeEnviar = c => c.kind === "esquenta" || aberto();
+  const ordem = () => { if (modo === "esquenta") return esqs(); const rel = challenges.filter(c => c.kind === "relampago" && aberto()); return rel.concat(cards()); };
+  function setModo(m, manual) {
+    if (m === "esquenta" && !esqs().length) m = "festa";
+    modo = m; carSig = ""; posicionado = false;
+    $("#segEsq").setAttribute("aria-selected", String(m === "esquenta")); $("#segFesta").setAttribute("aria-selected", String(m === "festa"));
+    $("#segEsq").hidden = !esqs().length;
+    renderDesafios();
   }
-  function startCarousel() {
-    const track = $("#challengeGrid"); clearInterval(carouselTimer);
-    carouselTimer = setInterval(() => {
-      if (document.hidden || $("#challengeDialog").open || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      const max = track.scrollWidth - track.clientWidth; if (max <= 8) return;
-      if (track.scrollLeft >= max - 12) track.scrollTo({ left: 0, behavior: "smooth" }); else track.scrollBy({ left: 262, behavior: "smooth" });
-    }, 5200);
+  document.querySelectorAll("[data-modo]").forEach(b => b.onclick = () => setModo(b.dataset.modo, true));
+  function setMural(m) { mural = m; feedSig = ""; $("#muralFesta").setAttribute("aria-selected", String(m === "festa")); $("#muralEsq").setAttribute("aria-selected", String(m === "esquenta")); renderFeed(); }
+  document.querySelectorAll("[data-mural]").forEach(b => b.onclick = () => setMural(b.dataset.mural));
+  function renderDesafios() {
+    if (!modo) { setModo(ev && ev.status === "antes" && esqs().length ? "esquenta" : "festa"); return; }
+    const lista = principais(), fs = feitosSet(), feitos = lista.filter(c => fs.has(c.id)).length;
+    const pts = (board.find(b => profile && b.participant_id === profile.id) || {}).points || 0;
+    if (modo === "esquenta") {
+      $("#progressText").innerHTML = `<span class="esq-nota"><b>${feitos} de ${lista.length}</b> no mural · não vale pontos, vale movimento</span>`;
+      $("#myPoints").parentElement.style.visibility = "hidden";
+    } else {
+      $("#progressText").textContent = `${feitos} de ${lista.length} desafios feitos`;
+      $("#myPoints").parentElement.style.visibility = "";
+    }
+    $("#myPoints").textContent = pts;
+    $("#progressBar").style.width = (lista.length ? feitos / lista.length * 100 : 0) + "%";
+    $("#lightning").innerHTML = "";
+    const itens = ordem();
+    const sig = modo + itens.map(c => c.id + ":" + (fs.has(c.id) ? 1 : 0) + ":" + c.description).join("|") + aberto();
+    if (sig !== carSig) {
+      carSig = sig;
+      const car = $("#carousel"), scroll = car.scrollLeft;
+      car.innerHTML = itens.map(c => {
+        const rel = c.kind === "relampago", esq = c.kind === "esquenta", feito = fs.has(c.id);
+        return `<article class="card ${feito ? "feito" : ""} ${rel ? "rel-card" : ""} ${esq ? "esq" : ""}" data-id="${c.id}">
+          <div class="top"><span>${rel ? "ATENÇÃO · RELÂMPAGO" : esq ? "ESQUENTA · ANTES DA FESTA" : esc(c.category)}</span><span class="pts">${esq ? "SEM PONTOS" : `+${c.points} PT${c.points > 1 ? "S" : ""}`}</span></div>
+          <div class="num">${rel ? "R" : esq ? "ESQUENTA" : pad(c.id)}</div>
+          <h3>${rel ? "Desafio Relâmpago" : esc(c.title)}</h3>
+          <p class="tarefa">${esc(c.description)}</p>
+          <span class="selo">✓ ${esq ? "NO MURAL" : "FEITO"} · pode enviar outra foto</span>
+          <div class="acoes">${podeEnviar(c)
+            ? `<button class="btn btn-go" data-cam="${c.id}">TIRAR FOTO</button><button class="btn btn-line gal" data-gal="${c.id}" aria-label="Escolher foto ou print da galeria">${esq ? "PRINT/GALERIA" : "GALERIA"}</button>`
+            : `<button class="btn btn-go" disabled style="grid-column:1/-1">ENVIOS FECHADOS AGORA</button>`}</div>
+        </article>`;
+      }).join("");
+      car.scrollLeft = scroll;
+      car.querySelectorAll("[data-cam]").forEach(b => b.onclick = () => escolher(+b.dataset.cam, "#camInput"));
+      car.querySelectorAll("[data-gal]").forEach(b => b.onclick = () => escolher(+b.dataset.gal, "#galInput"));
+      $("#dots").innerHTML = itens.map(c => `<i class="${c.kind === "relampago" ? "rel" : fs.has(c.id) ? "feito" : ""}"></i>`).join("");
+      if (!posicionado && itens.length) { posicionado = true; irPara(proximoAFazer(), false); }
+      marcaAtual();
+    }
   }
-  $("#challengePrev").onclick = () => $("#challengeGrid").scrollBy({ left: -262, behavior: "smooth" });
-  $("#challengeNext").onclick = () => $("#challengeGrid").scrollBy({ left: 262, behavior: "smooth" });
-  ["pointerdown", "mouseenter", "focusin"].forEach(t => $("#challengeGrid").addEventListener(t, () => clearInterval(carouselTimer)));
-  ["mouseleave"].forEach(t => $("#challengeGrid").addEventListener(t, startCarousel));
+  const proximoAFazer = (depoisDe) => {
+    const it = ordem(), cs = principais().filter(c => !feitosSet().has(c.id));
+    const alvo = cs.find(c => depoisDe != null && c.id > depoisDe) || cs[0];
+    const k = alvo ? it.findIndex(c => c.id === alvo.id) : 0; return k < 0 ? 0 : k;
+  };
+  function irPara(k, suave = true) { const card = $("#carousel").children[k]; if (card) $("#carousel").scrollTo({ left: card.offsetLeft - $("#carousel").firstElementChild.offsetLeft, behavior: suave ? "smooth" : "auto" }); setTimeout(marcaAtual, suave ? 400 : 0); }
+  function idxAtual() { const car = $("#carousel"), kids = [...car.children]; if (!kids.length) return 0; const x = car.scrollLeft + kids[0].offsetLeft; let best = 0, d = 1e9; kids.forEach((k, i) => { const dd = Math.abs(k.offsetLeft - x); if (dd < d) { d = dd; best = i; } }); return best; }
+  function marcaAtual() {
+    const k = idxAtual(), it = ordem(), c = it[k];
+    if (c) $("#carCount").textContent = c.kind === "relampago" ? "DESAFIO RELÂMPAGO" : c.kind === "esquenta" ? `ESQUENTA ${k + 1} DE ${esqs().length}` : `DESAFIO ${c.id} DE ${cards().length}`;
+    [...$("#dots").children].forEach((d, i) => d.classList.toggle("on", i === k));
+  }
+  let tScroll; $("#carousel").addEventListener("scroll", () => { clearTimeout(tScroll); tScroll = setTimeout(marcaAtual, 60); }, { passive: true });
+  $("#prevCard").onclick = () => irPara(Math.max(0, idxAtual() - 1));
+  $("#nextCard").onclick = () => irPara(Math.min(ordem().length - 1, idxAtual() + 1));
 
-  /* ---------- envio ---------- */
+  function renderStatus() {
+    const b = $("#statusBanner");
+    if (!ev || ev.status === "aberto") { b.classList.add("hidden"); return; }
+    b.classList.remove("hidden");
+    b.innerHTML = ev.status === "antes"
+      ? `<b>A PONTUAÇÃO COMEÇA NA FESTA</b>Os desafios com pontos abrem às ${hora(ev.abre)} do dia ${dataBR(ev.starts_at)}, em ${esc(ev.cidade)}.${esqs().length ? " Até lá, participe do Esquenta!" : ""}`
+      : `<b>ENVIOS ENCERRADOS</b>A festa de ${esc(ev.cidade)} terminou. Confira o ranking final.`;
+  }
+
+  /* ---------- foto e envio ---------- */
   let photoFile = null, tagged = new Set();
-  function openChallenge(id) {
+  function escolher(id, input) {
+    const ch = challenges.find(c => c.id === id); if (ch && !podeEnviar(ch)) { toast("Os envios estão fechados agora.", true); return; }
+    pendente = id; const el = $(input); el.value = ""; el.click();
+  }
+  ["#camInput", "#galInput"].forEach(sel => $(sel).addEventListener("change", e => { const f = e.target.files && e.target.files[0]; if (f && pendente != null) abrirEnvio(pendente, f); }));
+  function abrirEnvio(id, file) {
     current = challenges.find(c => c.id === id); if (!current) return;
-    const c = current, rel = c.kind === "relampago", aberto = ev && ev.status === "aberto";
-    photoFile = null; tagged = new Set();
-    $("#dialogContent").innerHTML = `<div class="dialog-category" style="color:${cor(c)}">${esc(c.category)} / +${c.points} PONTO${c.points > 1 ? "S" : ""}</div><div class="dialog-number" style="color:${cor(c)}">${rel ? "⚡" : pad(c.id)}</div><h2>${rel ? "Desafio Relâmpago" : esc(c.title)}</h2><p class="dialog-desc">${esc(c.description)}</p>` +
-      (aberto ? `<form id="submissionForm" class="dialog-form" novalidate><label>Envie a foto que comprova o desafio<input type="file" id="photo" accept="image/*" capture="environment" required></label><label>Quem aparece na foto? <span class="muted">(selecione todos os colaboradores)</span></label><input id="tagSearch" class="tag-search" type="search" placeholder="Buscar pelo nome…" autocomplete="off"><div id="participants" class="participant-list"></div><button class="btn btn-primary" type="submit" id="submitBtn">ENVIAR E CONQUISTAR PONTOS ↗</button><p id="submitMessage" class="form-message"></p></form>`
-        : `<p class="dialog-desc"><b>${ev && ev.status === "antes" ? `Os envios abrem às ${hora(ev.abre)} do dia ${dataBR(ev.starts_at)}.` : "Os envios deste evento foram encerrados."}</b></p>`);
-    $("#challengeDialog").showModal();
-    if (!aberto) return;
-    $("#photo").onchange = e => { photoFile = e.target.files[0] || null; };
-    $("#tagSearch").oninput = renderTags;
-    renderTags();
+    const c = current, rel = c.kind === "relampago";
+    photoFile = file; tagged = new Set();
+    $("#dialogContent").innerHTML = `
+      <p class="kicker" style="color:${rel ? "var(--stop)" : "var(--muted)"}">${rel ? "DESAFIO RELÂMPAGO · +" + c.points + " PTS" : c.kind === "esquenta" ? "ESQUENTA · VAI PARA O MURAL" : "DESAFIO " + pad(c.id) + " · +" + c.points + " PT" + (c.points > 1 ? "S" : "")}</p>
+      <h3>${rel ? "Relâmpago" : esc(c.title)}</h3>
+      <img class="prev-photo" id="preview" alt="Sua foto">
+      <button type="button" class="troca" id="trocaFoto">Trocar foto</button>
+      <form id="submissionForm" novalidate>
+        <details class="tag"><summary>Marcar quem mais está na foto <span class="count" id="tagCount">${c.kind === "esquenta" ? "(opcional)" : "(opcional: eles também pontuam)"}</span></summary>
+          <input id="tagSearch" class="search" type="search" placeholder="Buscar pelo nome" autocomplete="off" aria-label="Buscar colega pelo nome"><div id="people" class="people"></div></details>
+        <button class="btn btn-go" type="submit" id="submitBtn" style="width:100%">ENVIAR FOTO</button>
+        <p id="submitMessage" class="msg-stop" role="alert" style="margin-top:12px"></p>
+      </form>`;
+    $("#preview").src = URL.createObjectURL(file);
+    if (!$("#challengeDialog").open) $("#challengeDialog").showModal();
+    $("#trocaFoto").onclick = () => escolher(id, "#galInput");
+    $("#tagSearch").oninput = renderPeople;
+    renderPeople();
     $("#submissionForm").onsubmit = submitChallenge;
   }
-  function renderTags() {
-    const fold = t => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-    const q = fold($("#tagSearch").value || "");
-    const max = (ev && ev.max_marcados) || 15;
+  function renderPeople() {
+    const q = fold($("#tagSearch").value || ""), max = (ev && ev.max_marcados) || 15;
     const outros = roster.filter(r => r.id !== profile.id && (!q || fold(r.full_name).includes(q)));
     const lista = q ? outros : outros.filter(r => tagged.has(r.id)).concat(outros.filter(r => !tagged.has(r.id)));
-    $("#participants").innerHTML = `<label><input type="checkbox" checked disabled>${esc(profile.full_name)} (você)</label>` + lista.map(r => `<label><input type="checkbox" value="${esc(r.id)}" ${tagged.has(r.id) ? "checked" : ""}>${esc(r.full_name)}</label>`).join("");
-    $("#participants").querySelectorAll("input[value]").forEach(i => i.onchange = () => { if (i.checked && tagged.size >= max) { i.checked = false; $("#submitMessage").textContent = `Selecione no máximo ${max} colegas por foto.`; return; } i.checked ? tagged.add(i.value) : tagged.delete(i.value); });
+    $("#people").innerHTML = lista.slice(0, 80).map(r => `<label><input type="checkbox" value="${esc(r.id)}" ${tagged.has(r.id) ? "checked" : ""}>${esc(r.full_name)}</label>`).join("") || `<label class="me">Ninguém encontrado.</label>`;
+    $("#people").querySelectorAll("input[value]").forEach(i => i.onchange = () => {
+      if (i.checked && tagged.size >= max) { i.checked = false; $("#submitMessage").textContent = `Máximo de ${max} colegas por foto.`; return; }
+      i.checked ? tagged.add(i.value) : tagged.delete(i.value);
+      $("#tagCount").textContent = tagged.size ? `· ${tagged.size} marcado${tagged.size > 1 ? "s" : ""}` : "(opcional: eles também pontuam)";
+    });
   }
   async function submitChallenge(e) {
     e.preventDefault(); if (busy) return;
     const msg = $("#submitMessage");
-    if (!photoFile) return msg.textContent = "Selecione uma foto.";
-    if (!/^image\//.test(photoFile.type)) return msg.textContent = "O arquivo precisa ser uma imagem.";
-    busy = true; $("#submitBtn").disabled = true; msg.textContent = "Registrando participação…";
+    if (!photoFile || !/^image\//.test(photoFile.type)) return msg.textContent = "O arquivo precisa ser uma foto.";
+    busy = true; $("#submitBtn").disabled = true; $("#submitBtn").textContent = "ENVIANDO…"; msg.textContent = "";
     try {
       const r = await API.submit(current.id, [...tagged], photoFile);
       $("#challengeDialog").close();
-      const col = r.colegas_pontuaram > 0 ? `<br>${r.colegas_pontuaram} colega${r.colegas_pontuaram > 1 ? "s" : ""} também pontu${r.colegas_pontuaram > 1 ? "aram" : "ou"}.` : "";
-      toast(r.pontuou ? `MOVIMENTO REGISTRADO! +${r.ganhou} PONTO${r.ganhou > 1 ? "S" : ""}${col}` : `FOTO ENVIADA!${col}`, 4200);
       await refresh();
-    } catch (er) { msg.textContent = er.message; }
-    finally { busy = false; const b = $("#submitBtn"); if (b) b.disabled = false; }
+      celebrate(r);
+    } catch (er) { msg.textContent = er.message; $("#submitBtn").disabled = false; $("#submitBtn").textContent = "ENVIAR FOTO"; }
+    finally { busy = false; }
+  }
+  function celebrate(r) {
+    const o = $("#done"), esq = current && current.kind === "esquenta";
+    const faltam = principais().filter(c => !feitosSet().has(c.id)).length;
+    const col = !esq && r.colegas_pontuaram > 0 ? `${r.colegas_pontuaram} colega${r.colegas_pontuaram > 1 ? "s" : ""} também pontu${r.colegas_pontuaram > 1 ? "aram" : "ou"}.` : "";
+    const topo = esq ? `<div class="plus">✓</div><h2>Você está no movimento!</h2><p>Sua foto já está no mural do Esquenta. Não vale pontos, mas já está movimentando a galera.</p>`
+      : `<div class="plus">+${r.ganhou}</div><h2>${r.pontuou ? "Desafio concluído!" : "Foto enviada!"}</h2><p>Você tem ${r.pontos} ponto${r.pontos === 1 ? "" : "s"}${r.posicao ? ` e está em ${r.posicao}º lugar` : ""}. ${col}</p>`;
+    o.innerHTML = `<div class="rush">${Array.from({ length: 7 }, (_, i) => `<i style="top:${12 + i * 12}%;animation-delay:${i * .05}s"></i>`).join("")}</div>
+      <div class="box">${topo}
+      ${faltam ? `<div class="next"><small>AINDA FALTAM</small><b>${faltam} ${esq ? "esquenta" + (faltam > 1 ? "s" : "") : "desafio" + (faltam > 1 ? "s" : "")}</b></div>` : `<div class="next"><small>${esq ? "ESQUENTA COMPLETO" : "TRILHA COMPLETA"}</small><b>${esq ? "Agora é esperar a festa!" : "Você fez todos os desafios!"}</b></div>`}
+      <button class="btn btn-go" id="doneBtn">${faltam ? (esq ? "PRÓXIMO ESQUENTA" : "PRÓXIMO DESAFIO") : esq ? "VER MURAL" : "VER RANKING"}</button></div>`;
+    o.classList.remove("hidden");
+    $("#doneBtn").focus();
+    $("#doneBtn").onclick = () => { o.classList.add("hidden"); if (faltam) { go("desafios"); irPara(proximoAFazer(current ? current.id : null)); } else if (esq) { go("fotos"); setMural("esquenta"); } else go("ranking"); };
   }
 
-  /* ---------- feed, ranking, placar ---------- */
+  /* ---------- ranking e fotos ---------- */
+  function renderRanking() {
+    const top = (ev && ev.top) || 10;
+    const i = profile ? board.findIndex(b => b.participant_id === profile.id) : -1;
+    const me = i >= 0 ? board[i] : null, corte = board[top - 1];
+    $("#chipPts").textContent = me ? me.points : 0;
+    $("#chipPos").textContent = me ? `${i + 1}º` : "—";
+    const hint = !me ? `<span class="hint">Conclua o primeiro desafio para entrar no ranking.</span>` : i < top ? `<span class="hint go">Você está no top ${top}. Continue assim.</span>` : `<span class="hint">Faltam ${corte.points - me.points + 1} pontos para o top ${top}.</span>`;
+    $("#rankMe").innerHTML = `<div><small>SUA POSIÇÃO${ev && ev.id !== "teste" ? " · " + esc(ev.cidade.toUpperCase()) : ""}</small><div class="big">${me ? i + 1 + "º" : "—"}</div></div><div style="text-align:right"><small>PONTOS</small><div class="big">${me ? me.points : 0}</div></div>${hint}`;
+    const row = (p, k) => `<li class="${k < top ? "top" : ""} ${profile && p.participant_id === profile.id ? "eu" : ""}"><span class="pos">${k + 1}º</span><span>${esc(shortName(p.name))}</span><span class="pts">${p.points}</span></li>`;
+    let html = board.slice(0, top).map(row).join("");
+    if (i >= top) html += `<li class="cut">SUA POSIÇÃO</li>` + row(me, i);
+    $("#rankingRows").innerHTML = html || `<li class="empty">Ninguém pontuou ainda.</li>`;
+    $("#rankingNote").textContent = `Os ${top} primeiros ganham brinde. Empate: vence quem chegou primeiro à pontuação.`;
+  }
   let feedSig = "";
   function renderFeed() {
-    const sig = feedData.map(f => f.submission_id).join("|"); if (sig === feedSig) return; feedSig = sig;
-    if (!feedData.length) { $("#feed").innerHTML = `<div class="empty-state">As fotos aparecem aqui assim que alguém enviar. Que tal ser o primeiro movimento?</div>`; return; }
-    $("#feed").innerHTML = `<div class="feed-track">${feedData.map(f => `
-      <figure class="feed-item" style="--accent:${COR[f.category] || "#ffd400"}"><div class="feed-photo" style="background-image:url('${esc(f.url || API.url(f.photo_path) || "")}')"></div>
-      <figcaption><span class="feed-num">${f.category === "RELÂMPAGO" ? "⚡" : pad(f.challenge_id)}</span><div><b>${esc(f.title)}</b><span>${esc((f.names || []).slice(0, 4).join(", "))}${f.names && f.names.length > 4 ? ` +${f.names.length - 4}` : ""}</span></div></figcaption></figure>`).join("")}</div>`;
-  }
-  function renderBoard() {
-    const top = (ev && ev.top) || 10;
-    const meIdx = profile ? board.findIndex(b => b.participant_id === profile.id) : -1;
-    const me = meIdx >= 0 ? board[meIdx] : null;
-    $("#myPoints").textContent = me ? me.points : 0;
-    $("#myChallenges").textContent = done.size;
-    $("#myPosition").textContent = me ? `#${meIdx + 1}` : "—";
-    const row = (p, i) => `<div class="ranking-row"><div class="rank-name"><span class="rank-num">${pad(i + 1)}</span><span>${esc(p.name)}</span></div><strong class="rank-row-points">${p.points} PTS</strong></div>`;
-    let html = board.slice(0, top).map(row).join("");
-    if (meIdx >= top) html += row(me, meIdx);
-    $("#rankingRows").innerHTML = html || '<div class="empty-state">Ainda não há participações registradas. Seja o primeiro movimento!</div>';
+    const dados = mural === "esquenta" ? feedEsq : feedData;
+    const sig = mural + dados.map(f => f.submission_id).join("|"); if (sig === feedSig) return; feedSig = sig;
+    $("#feed").innerHTML = dados.length ? dados.map(f => `<figure><div class="ph" style="background-image:url('${esc(f.url || API.url(f.photo_path) || "")}')"></div><figcaption><b>${f.category === "RELÂMPAGO" ? "Relâmpago" : f.category === "ESQUENTA" ? esc(f.title) : pad(f.challenge_id) + " · " + esc(f.title)}</b>${esc((f.names || []).slice(0, 3).join(", "))}${f.names && f.names.length > 3 ? ` +${f.names.length - 3}` : ""}</figcaption></figure>`).join("") : `<div class="empty">${mural === "esquenta" ? "As fotos do Esquenta aparecem aqui. Que tal ser a primeira?" : "As fotos da noite aparecem aqui."}</div>`;
   }
 
   /* ---------- área do RH ---------- */
-  $("#adminToggle").onclick = () => { $("#adminPanel").classList.toggle("hidden"); if (!$("#adminPanel").classList.contains("hidden")) loadAdmin(); };
   $("#adminReload").onclick = loadAdmin;
   $("#adminEvent").onchange = loadAdmin;
   async function loadAdmin() {
     const msg = $("#adminMessage"); msg.textContent = "Carregando…";
     try {
       const rel = await API.admin.lightningAll();
-      $("#adminLightning").innerHTML = (rel || []).map(r => `<div class="al-row ${r.active ? "on" : ""}"><span class="al-n">⚡ ${r.id - 100}</span><textarea data-id="${r.id}" rows="2">${esc(r.description)}</textarea><button class="btn btn-small ${r.active ? "btn-ghost" : "btn-primary"}" data-light="${r.id}" data-on="${r.active ? 0 : 1}">${r.active ? "DESLIGAR" : "LIGAR"}</button></div>`).join("");
-      $("#adminLightning").querySelectorAll("[data-light]").forEach(b => b.onclick = async () => { const id = +b.dataset.light; const desc = $(`#adminLightning textarea[data-id="${id}"]`).value; await API.admin.setLightning(id, b.dataset.on === "1", desc); toast(b.dataset.on === "1" ? "RELÂMPAGO LIGADO! Já aparece no app e no telão." : "Relâmpago desligado."); await refresh(); loadAdmin(); });
+      $("#adminLightning").innerHTML = (rel || []).map(r => `<div class="al-row ${r.active ? "on" : ""}"><span>Relâmpago ${r.id - 100}${r.active ? " · NO AR" : ""}</span><button class="btn btn-small ${r.active ? "btn-stop" : "btn-line"}" data-light="${r.id}" data-on="${r.active ? 0 : 1}">${r.active ? "DESLIGAR" : "LIGAR"}</button><textarea data-id="${r.id}" rows="2" aria-label="Texto do relâmpago ${r.id - 100}">${esc(r.description)}</textarea></div>`).join("");
+      $("#adminLightning").querySelectorAll("[data-light]").forEach(b => b.onclick = async () => { const id = +b.dataset.light; await API.admin.setLightning(id, b.dataset.on === "1", $(`#adminLightning textarea[data-id="${id}"]`).value); toast(b.dataset.on === "1" ? "Relâmpago no ar: já aparece no app e no telão." : "Relâmpago desligado."); await refresh(); loadAdmin(); });
       const list = await API.admin.list($("#adminEvent").value || (ev && ev.id));
-      msg.textContent = `${list.length} envio(s)${list.length > 60 ? " (mostrando os 60 mais recentes; o CSV traz todos)" : ""}. Toque em "invalidar" para tirar a foto do telão e retirar os pontos.`;
-      $("#adminList").innerHTML = list.slice(0, 60).map(s => `<div class="adm-item ${s.valid ? "" : "invalid"}"><div class="adm-thumb" style="background-image:url('${esc(s.url || "")}')"></div><div class="adm-info"><b>${s.challenge_id > 100 ? "⚡" : pad(s.challenge_id)} · ${esc(s.title)}</b><span>${esc(s.pessoas)}</span><small>${hora(s.created_at)} · enviado por ${esc(s.enviado_por)}</small></div><button class="btn btn-ghost btn-small" data-valid="${esc(s.id)}" data-v="${s.valid ? 0 : 1}">${s.valid ? "INVALIDAR" : "VALIDAR"}</button></div>`).join("");
+      msg.textContent = `${list.length} envio(s)${list.length > 60 ? " · mostrando os 60 mais recentes (o CSV traz todos)" : ""}. "Invalidar" tira a foto do telão e retira os pontos.`;
+      $("#adminList").innerHTML = list.slice(0, 60).map(s => `<div class="adm ${s.valid ? "" : "off"}"><div class="th" style="background-image:url('${esc(s.url || "")}')"></div><div><b>${s.challenge_id > 100 ? "Relâmpago" : pad(s.challenge_id)} · ${esc(s.title)}</b><span>${esc(s.pessoas)}</span><span>${hora(s.created_at)} · por ${esc(s.enviado_por)}</span></div><button class="btn btn-small ${s.valid ? "btn-line" : "btn-go"}" data-valid="${esc(s.id)}" data-v="${s.valid ? 0 : 1}">${s.valid ? "INVALIDAR" : "VALIDAR"}</button></div>`).join("");
       $("#adminList").querySelectorAll("[data-valid]").forEach(b => b.onclick = async () => { await API.admin.setValid(b.dataset.valid, b.dataset.v === "1"); await refresh(); loadAdmin(); });
     } catch (er) { msg.textContent = er.message; }
   }
@@ -177,25 +252,29 @@
   };
 
   /* ---------- atualização ---------- */
-  async function refresh() {
+  async function refresh(silencioso) {
     try {
       [ev, challenges] = await Promise.all([API.event(EV_PARAM), API.challenges()]);
-      renderEvent();
+      $("#topN").textContent = (ev && ev.top) || 10;
+      renderStatus();
       if (profile) {
-        const [b, d, f] = await Promise.all([API.leaderboard(EV_PARAM || ev.id), API.myChallenges(EV_PARAM || ev.id), API.feed(EV_PARAM || ev.id)]);
-        board = b; done = new Set(d); feedData = f;
-        renderBoard(); renderFeed();
+        const evId = EV_PARAM || ev.id;
+        const temEsq = challenges.some(c => c.kind === "esquenta");
+        const [b, d, f, de, fe] = await Promise.all([API.leaderboard(evId), API.myChallenges(evId), API.feed(evId),
+          temEsq ? API.myChallenges("esquenta") : [], API.feed("esquenta")]);
+        board = b; done = new Set(d); feedData = f; doneEsq = new Set(de); feedEsq = fe;
+        if (modo === "esquenta" && !temEsq) modo = null;
+        renderDesafios();
+        renderRanking(); renderFeed();
       }
-      renderChallenges();
     } catch (er) { console.error(er); }
   }
 
   async function init() {
-    try { ev = await API.event(EV_PARAM); renderEvent(); } catch (e) { console.error(e); }
+    try { ev = await API.event(EV_PARAM); $("#topN").textContent = (ev && ev.top) || 10; } catch (e) { console.error(e); }
     API.onAuth(s => { if (!s && profile) { profile = null; show("welcome"); } });
-    if (await API.session()) { await afterLogin().catch(() => show("welcome")); } else { show("welcome"); await refresh(); }
-    startCarousel();
-    setInterval(() => { if (!document.hidden && !busy) refresh(); }, (CFG.ATUALIZAR_A_CADA_SEG || 15) * 1000);
+    if (await API.session()) { await afterLogin().catch(() => show("welcome")); } else { show("welcome"); }
+    setInterval(() => { if (!document.hidden && !busy && $("#done").classList.contains("hidden")) refresh(); }, (CFG.ATUALIZAR_A_CADA_SEG || 15) * 1000);
   }
   init();
 })();
